@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Fit any image to your phone or tablet screen size without cropping. Free, runs fully in your browser." />
+  <title>No-Crop Wallpaper Maker</title>
+  <style>
+    :root{
+      --bg:#0f1220;--panel:#171a2b;--panel-2:#1f2340;--text:#e8ebff;--muted:#a7b0d9;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:radial-gradient(1200px 600px at 10% -10%, #2a3064 0%, transparent 60%),radial-gradient(1000px 700px at 110% 10%, #183055 0%, transparent 60%),var(--bg);color:var(--text);font:14px/1.4 system-ui,Segoe UI,Roboto,Helvetica,Arial}
+    .wrap{max-width:1100px;margin:0 auto;padding:20px}
+    header{display:flex;gap:14px;align-items:center;justify-content:space-between;margin-bottom:14px}
+    header h1{font-size:20px;margin:0;font-weight:700;letter-spacing:.3px}
+    header .cta{display:flex;gap:10px;align-items:center}
+    .grid{display:grid;grid-template-columns:340px 1fr;gap:16px}
+    .panel{background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid #2a315b;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.25);padding:14px}
+    .panel h2{margin:4px 0 10px;font-size:13px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.12em}
+    .row{display:flex;gap:10px;margin-bottom:10px}
+    .row > *{flex:1}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+    input[type="number"], input[type="text"], select{width:100%;padding:9px 10px;border-radius:10px;border:1px solid #2a315b;background:#111427;color:var(--text);outline:none}
+    input[type="color"]{width:100%;height:36px;border-radius:10px;border:1px solid #2a315b;background:transparent;padding:0}
+    input[type="range"]{width:100%}
+    button{appearance:none;border:none;border-radius:10px;background:linear-gradient(180deg,#5568ff,#4355ff);color:#fff;padding:10px 12px;font-weight:600;cursor:pointer}
+    button.ghost{background:#20264a;border:1px solid #2a315b;color:var(--text)}
+    .help{font-size:12px;color:var(--muted)}
+    .preview-area{display:grid;grid-template-rows:auto 1fr;gap:12px;min-height:0}
+    .stage{position:relative;background:#0b0e1d;border:1px solid #2a315b;border-radius:16px;display:flex;align-items:center;justify-content:center;overflow:hidden;min-height:320px;padding:16px}
+    canvas{display:block;border-radius:8px}
+    .toolbar{display:flex;flex-wrap:wrap;gap:8px}
+    .badge{padding:6px 10px;background:#20264a;border:1px solid #2a315b;border-radius:999px;color:var(--muted);font-size:12px}
+    @media (max-width: 900px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>No-Crop Wallpaper Maker</h1>
+      <div class="cta">
+        <button id="btnDownload">Download</button>
+        <button id="btnReset" class="ghost">Reset</button>
+      </div>
+    </header>
+
+    <div class="grid">
+      <aside class="panel" id="controls">
+        <h2>Image</h2>
+        <div class="row">
+          <input type="file" id="file" accept="image/*" />
+        </div>
+        <div class="row">
+          <button id="btnSample" class="ghost" title="Load a small gradient sample to test">Load sample</button>
+        </div>
+
+        <h2>Target Resolution</h2>
+        <div class="row">
+          <select id="preset">
+            <option value="">Choose preset…</option>
+            <option value="1080x2400">1080 × 2400 (FHD+)</option>
+            <option value="1440x3200">1440 × 3200 (QHD+)</option>
+            <option value="1179x2556">1179 × 2556 (iPhone 15)</option>
+            <option value="1290x2796">1290 × 2796 (iPhone 15 Pro Max)</option>
+            <option value="1242x2688">1242 × 2688 (iPhone XS Max)</option>
+            <option value="1536x2048">1536 × 2048 (iPad Mini)</option>
+          </select>
+        </div>
+        <div class="row">
+          <div>
+            <label for="w">Width (px)</label>
+            <input id="w" type="number" min="64" max="8192" step="1" value="1080" />
+          </div>
+          <div>
+            <label for="h">Height (px)</label>
+            <input id="h" type="number" min="64" max="8192" step="1" value="2400" />
+          </div>
+        </div>
+        <div class="row">
+          <button id="btnDetect" class="ghost" title="Use your screen size × pixel ratio">Use my screen size</button>
+        </div>
+
+        <h2>Fit Mode</h2>
+        <div class="row">
+          <select id="fit">
+            <option value="contain">Contain (no crop)</option>
+            <option value="cover">Cover (crop)</option>
+            <option value="stretch">Stretch</option>
+            <option value="center">Center (no scale)</option>
+            <option value="tile">Tile (repeat)</option>
+          </select>
+        </div>
+        <div class="row" id="tileRow" style="display:none">
+          <div>
+            <label for="tileScale">Tile size (%)</label>
+            <input id="tileScale" type="range" min="10" max="300" value="100" />
+          </div>
+          <div>
+            <label for="tileGap">Gap (px)</label>
+            <input id="tileGap" type="number" min="0" max="200" value="0" />
+          </div>
+        </div>
+
+        <h2>Background</h2>
+        <div class="row">
+          <select id="bgMode">
+            <option value="solid">Solid color</option>
+            <option value="gradient">Gradient</option>
+            <option value="blur">Blur from image</option>
+            <option value="transparent">Transparent (PNG/WEBP)</option>
+          </select>
+        </div>
+        <div class="row" id="solidRow">
+          <div>
+            <label for="bgColor">Color</label>
+            <input id="bgColor" type="color" value="#0b0e1d" />
+          </div>
+        </div>
+        <div class="row" id="gradRow" style="display:none">
+          <div>
+            <label for="g1">From</label>
+            <input id="g1" type="color" value="#10133a" />
+          </div>
+          <div>
+            <label for="g2">To</label>
+            <input id="g2" type="color" value="#202a63" />
+          </div>
+        </div>
+        <div class="row" id="gradRow2" style="display:none">
+          <div>
+            <label for="gAngle">Angle (°)</label>
+            <input id="gAngle" type="range" min="0" max="360" value="45" />
+          </div>
+        </div>
+        <div class="row" id="blurRow" style="display:none">
+          <div>
+            <label for="blurPx">Blur (px)</label>
+            <input id="blurPx" type="range" min="0" max="80" value="30" />
+          </div>
+          <div>
+            <label for="dimPct">Brightness (%)</label>
+            <input id="dimPct" type="range" min="30" max="100" value="90" />
+          </div>
+        </div>
+
+        <h2>Export</h2>
+        <div class="row">
+          <select id="format">
+            <option value="image/png">PNG (lossless)</option>
+            <option value="image/jpeg">JPEG</option>
+            <option value="image/webp">WEBP</option>
+          </select>
+        </div>
+        <div class="row">
+          <div>
+            <label for="quality">Quality (JPEG/WEBP)</label>
+            <input id="quality" type="range" min="60" max="100" value="92" />
+          </div>
+          <div class="help" style="display:flex;align-items:flex-end">Higher = bigger file</div>
+        </div>
+
+        <div class="help">
+          Tip: "Contain" keeps the full image with letterboxing. Use "Blur from image" for a modern look. Everything runs in your browser; nothing is uploaded.
+        </div>
+      </aside>
+
+      <main class="preview-area">
+        <div class="toolbar">
+          <div class="badge" id="badgeRes">1080 × 2400</div>
+          <div class="badge" id="badgeImg">No image loaded</div>
+        </div>
+        <section class="stage" id="stage">
+          <canvas id="preview" width="432" height="960" aria-label="Wallpaper preview"></canvas>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script>
+  ;(() => {
+    const $ = id => document.getElementById(id);
+    const els = {};
+    ['file','preview','stage','w','h','preset','fit','tileRow','tileScale','tileGap','bgMode','solidRow',
+     'gradRow','gradRow2','blurRow','bgColor','g1','g2','gAngle','blurPx','dimPct','format','quality',
+     'btnDownload','btnReset','btnDetect','btnSample','badgeRes','badgeImg'
+    ].forEach(id => els[id] = $(id));
+
+    const MAX_SIDE = 8192;
+    const state = { img: null, imgURL: null };
+
+    const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+    const makeCanvas = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+    const num = (el, def = 0) => { const v = parseInt(el.value, 10); return Number.isFinite(v) ? v : def; };
+
+    function getTargetSize(){
+      return { w: clamp(num(els.w, 1080), 64, MAX_SIDE), h: clamp(num(els.h, 2400), 64, MAX_SIDE) };
+    }
+
+    function updateBadges(){
+      const {w,h} = getTargetSize();
+      els.badgeRes.textContent = `${w} × ${h}`;
+      els.badgeImg.textContent = state.img ? `${state.img.naturalWidth} × ${state.img.naturalHeight}` : 'No image loaded';
+    }
+
+    function setVisibility(){
+      els.tileRow.style.display = els.fit.value === 'tile' ? '' : 'none';
+      els.solidRow.style.display = els.bgMode.value === 'solid' ? '' : 'none';
+      const g = els.bgMode.value === 'gradient';
+      els.gradRow.style.display = g ? '' : 'none';
+      els.gradRow2.style.display = g ? '' : 'none';
+      els.blurRow.style.display = els.bgMode.value === 'blur' ? '' : 'none';
+    }
+
+    function calcContain(sw, sh, tw, th){
+      const s = Math.min(tw/sw, th/sh);
+      const dw = Math.round(sw*s), dh = Math.round(sh*s);
+      return { dx: Math.round((tw-dw)/2), dy: Math.round((th-dh)/2), dw, dh };
+    }
+    function calcCover(sw, sh, tw, th){
+      const s = Math.max(tw/sw, th/sh);
+      const dw = Math.round(sw*s), dh = Math.round(sh*s);
+      return { dx: Math.round((tw-dw)/2), dy: Math.round((th-dh)/2), dw, dh };
+    }
+
+    // Blur that also works where ctx.filter is unsupported (Safari/iOS)
+    function drawBlurred(ctx, w, h, blur){
+      const sw = state.img.naturalWidth, sh = state.img.naturalHeight;
+      if('filter' in ctx){
+        const c = calcCover(sw, sh, w, h);
+        ctx.filter = `blur(${blur}px)`;
+        ctx.drawImage(state.img, 0, 0, sw, sh, c.dx, c.dy, c.dw, c.dh);
+        ctx.filter = 'none';
+      }else{
+        const f = 1 / Math.max(1, blur / 2);
+        const small = makeCanvas(Math.max(1, Math.round(w*f)), Math.max(1, Math.round(h*f)));
+        const sctx = small.getContext('2d');
+        sctx.imageSmoothingQuality = 'high';
+        const c = calcCover(sw, sh, small.width, small.height);
+        sctx.drawImage(state.img, 0, 0, sw, sh, c.dx, c.dy, c.dw, c.dh);
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(small, 0, 0, w, h);
+      }
+    }
+
+    function drawBackground(ctx, w, h, k, forceFill){
+      let mode = els.bgMode.value;
+      if(mode === 'transparent'){
+        if(!forceFill) return;
+        mode = 'solid'; // formats without alpha (JPEG)
+      }
+      if(mode === 'solid'){
+        ctx.fillStyle = els.bgColor.value; ctx.fillRect(0, 0, w, h); return;
+      }
+      if(mode === 'gradient'){
+        const ang = parseFloat(els.gAngle.value || 0) * Math.PI / 180;
+        const cx = w/2, cy = h/2, len = Math.hypot(w, h) / 2;
+        const g = ctx.createLinearGradient(
+          cx - Math.cos(ang)*len, cy - Math.sin(ang)*len,
+          cx + Math.cos(ang)*len, cy + Math.sin(ang)*len
+        );
+        g.addColorStop(0, els.g1.value); g.addColorStop(1, els.g2.value);
+        ctx.fillStyle = g; ctx.fillRect(0, 0, w, h); return;
+      }
+      if(mode === 'blur'){
+        ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
+        if(state.img){
+          drawBlurred(ctx, w, h, num(els.blurPx, 30) * k);
+          const bright = clamp(num(els.dimPct, 90), 0, 100) / 100;
+          ctx.fillStyle = `rgba(0,0,0,${1 - bright})`;
+          ctx.fillRect(0, 0, w, h);
+        }
+      }
+    }
+
+    // Draws the full wallpaper in target coordinates (w × h).
+    // k = scale of the destination canvas vs. full size (used so blur looks the same in preview).
+    function paint(ctx, w, h, k, forceFill){
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      drawBackground(ctx, w, h, k, forceFill);
+      if(!state.img) return;
+
+      const sw = state.img.naturalWidth, sh = state.img.naturalHeight;
+      const fit = els.fit.value;
+      if(fit === 'center'){
+        ctx.drawImage(state.img, Math.round((w - sw)/2), Math.round((h - sh)/2));
+      }else if(fit === 'stretch'){
+        ctx.drawImage(state.img, 0, 0, w, h);
+      }else if(fit === 'cover'){
+        const c = calcCover(sw, sh, w, h);
+        ctx.drawImage(state.img, 0, 0, sw, sh, c.dx, c.dy, c.dw, c.dh);
+      }else if(fit === 'contain'){
+        const c = calcContain(sw, sh, w, h);
+        ctx.drawImage(state.img, 0, 0, sw, sh, c.dx, c.dy, c.dw, c.dh);
+      }else if(fit === 'tile'){
+        const scale = clamp(num(els.tileScale, 100), 10, 300) / 100;
+        const gap = clamp(num(els.tileGap, 0), 0, 200);
+        const tw = Math.max(1, Math.round(sw*scale)), th = Math.max(1, Math.round(sh*scale));
+        const tile = makeCanvas(tw + gap, th + gap);
+        const tctx = tile.getContext('2d');
+        tctx.imageSmoothingQuality = 'high';
+        tctx.drawImage(state.img, 0, 0, tw, th);
+        ctx.fillStyle = ctx.createPattern(tile, 'repeat');
+        ctx.fillRect(0, 0, w, h);
+      }
+    }
+
+    function render(){
+      const {w,h} = getTargetSize();
+      // Fit preview inside the stage, keeping aspect ratio
+      const boxW = Math.max(200, els.stage.clientWidth - 32);
+      const boxH = Math.max(200, Math.min(window.innerHeight * 0.75, 800));
+      const k = Math.min(boxW / w, boxH / h, 1);
+      const pw = Math.max(1, Math.round(w*k)), ph = Math.max(1, Math.round(h*k));
+      els.preview.width = pw; els.preview.height = ph;
+      const ctx = els.preview.getContext('2d');
+      ctx.setTransform(pw / w, 0, 0, ph / h, 0, 0);
+      paint(ctx, w, h, k, false);
+      updateBadges();
+    }
+
+    let queued = false;
+    function scheduleRender(){
+      if(queued) return;
+      queued = true;
+      requestAnimationFrame(() => { queued = false; render(); });
+    }
+
+    function download(){
+      const {w,h} = getTargetSize();
+      const type = els.format.value;
+      const q = clamp(num(els.quality, 92) / 100, 0.6, 1);
+      const work = makeCanvas(w, h);
+      const ctx = work.getContext('2d');
+      paint(ctx, w, h, 1, type === 'image/jpeg');
+      work.toBlob(blob => {
+        if(!blob){ alert('Export failed. Try a smaller size or PNG format.'); return; }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const ts = new Date().toISOString().replace(/[:.]/g, '-');
+        a.href = url;
+        a.download = `nocrop-${w}x${h}-${ts}.${type.split('/')[1].replace('jpeg','jpg')}`;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+      }, type, q);
+    }
+
+    function setImage(img, url){
+      if(state.imgURL) URL.revokeObjectURL(state.imgURL);
+      state.img = img; state.imgURL = url || null;
+      render();
+    }
+
+    // Events
+    els.file.addEventListener('change', ev => {
+      const f = ev.target.files && ev.target.files[0];
+      if(!f) return;
+      const url = URL.createObjectURL(f);
+      const img = new Image();
+      img.onload = () => setImage(img, url);
+      img.onerror = () => { URL.revokeObjectURL(url); alert('Could not load this image. Try a JPG, PNG or WEBP file.'); };
+      img.src = url;
+    });
+
+    els.btnSample.addEventListener('click', () => {
+      const c = makeCanvas(1200, 1800);
+      const ctx = c.getContext('2d');
+      const g = ctx.createLinearGradient(0, 0, c.width, c.height);
+      g.addColorStop(0, '#0ea5e9'); g.addColorStop(1, '#6366f1');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, c.width, c.height);
+      const img = new Image();
+      img.onload = () => setImage(img, null);
+      img.src = c.toDataURL('image/png');
+    });
+
+    els.preset.addEventListener('change', () => {
+      const v = els.preset.value; if(!v) return;
+      const [w,h] = v.split('x').map(n => parseInt(n, 10));
+      els.w.value = w; els.h.value = h; render();
+    });
+
+    ['w','h','tileScale','tileGap','bgColor','g1','g2','gAngle','blurPx','dimPct','quality']
+      .forEach(id => els[id].addEventListener('input', scheduleRender));
+    els.fit.addEventListener('change', () => { setVisibility(); render(); });
+    els.bgMode.addEventListener('change', () => { setVisibility(); render(); });
+    els.format.addEventListener('change', render);
+
+    els.btnDownload.addEventListener('click', download);
+    els.btnReset.addEventListener('click', () => {
+      els.file.value = '';
+      if(state.imgURL) URL.revokeObjectURL(state.imgURL);
+      state.img = null; state.imgURL = null;
+      render();
+    });
+
+    els.btnDetect.addEventListener('click', () => {
+      const pr = window.devicePixelRatio || 1;
+      els.w.value = clamp(Math.round(screen.width * pr), 64, MAX_SIDE);
+      els.h.value = clamp(Math.round(screen.height * pr), 64, MAX_SIDE);
+      render();
+    });
+
+    window.addEventListener('resize', scheduleRender);
+    setVisibility();
+    render();
+  })();
+  </script>
+</body>
+</html>
